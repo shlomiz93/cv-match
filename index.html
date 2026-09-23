@@ -1,0 +1,127 @@
+<!doctype html>
+<html lang="he" dir="rtl">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>CV Match — קורות חיים מותאמים למשרה</title>
+  <link rel="stylesheet" href="/static/style.css" />
+</head>
+<body>
+  <header class="topbar">
+    <div>
+      <div class="brand">CV Match</div>
+      <div class="tag">מעלים משרה → מקבלים קורות חיים מותאמים</div>
+    </div>
+    <button id="profileBtn" class="ghost">הפרופיל שלי</button>
+  </header>
+
+  <main class="shell">
+    <section class="input-card no-print">
+      <h1>איזו משרה מעניינת אותך?</h1>
+      <p class="muted">צילום מסך, לינק או תיאור חופשי. אפשר גם לשלב ביניהם.</p>
+
+      <div class="drop" id="dropZone">
+        <input id="screenshot" type="file" accept="image/png,image/jpeg,image/webp" hidden />
+        <div class="drop-icon">＋</div>
+        <strong>העלה צילום מסך של המשרה</strong>
+        <span>או גרור תמונה לכאן</span>
+        <img id="shotPreview" alt="" />
+      </div>
+
+      <label>לינק למשרה</label>
+      <input id="jobUrl" type="url" placeholder="https://..." />
+
+      <label>או תאר את המשרה במילים שלך</label>
+      <textarea id="jobText" rows="6" placeholder="לדוגמה: מנהל אולם תצוגה בחברת רכב, ניהול צוות מכירות, יעדים, ליסינג..."></textarea>
+
+      <div class="row">
+        <div class="grow">
+          <label>שפת הקורות חיים</label>
+          <select id="language">
+            <option value="auto">אוטומטי לפי המשרה</option>
+            <option value="he">עברית</option>
+            <option value="en">English</option>
+          </select>
+        </div>
+        <button id="generateBtn" class="primary">התאם לי קורות חיים</button>
+      </div>
+      <div id="status" class="status"></div>
+    </section>
+
+    <section id="clarifyCard" class="clarify no-print hidden">
+      <div class="badge warn">חסר מידע לפני שנוסיף אותו לקו״ח</div>
+      <h2>יש לי כמה שאלות קצרות</h2>
+      <div id="questions"></div>
+      <label>התשובות שלך</label>
+      <textarea id="extraNotes" rows="5" placeholder="ענה כאן חופשי. לדוגמה: כן, ניהלתי 8 עובדים במשך שנתיים..."></textarea>
+      <button id="regenerateBtn" class="primary">עדכן את הקורות חיים</button>
+    </section>
+
+    <section id="resultArea" class="hidden">
+      <div class="result-actions no-print">
+        <div id="matchPill" class="match-pill"></div>
+        <button id="printBtn" class="primary">שמור / הדפס PDF</button>
+      </div>
+      <div id="gapBox" class="gapbox no-print"></div>
+      <article id="cvPage" class="cv-page">
+        <aside class="cv-side">
+          <img id="profilePhoto" class="profile-photo" src="/profile-photo" alt="תמונת פרופיל" />
+          <h2 id="cvName">שלומי ציון</h2>
+          <div id="cvHeadline" class="headline"></div>
+          <div id="contactBox" class="contact"></div>
+          <hr />
+          <h3 id="skillsTitle">כישורים מרכזיים</h3>
+          <ul id="skillsList" class="plain-list"></ul>
+          <h3 id="languagesTitle">שפות</h3>
+          <ul id="languagesList" class="plain-list small"></ul>
+        </aside>
+        <section class="cv-main">
+          <div class="eyebrow" id="targetLabel">קורות חיים מותאמים למשרה</div>
+          <h1 id="targetTitle"></h1>
+          <p id="summary"></p>
+          <h2 id="experienceTitle">ניסיון מקצועי</h2>
+          <div id="experienceList"></div>
+          <div id="educationWrap">
+            <h2 id="educationTitle">השכלה והכשרה</h2>
+            <ul id="educationList"></ul>
+          </div>
+        </section>
+      </article>
+      <section class="send-card no-print">
+        <h3>הודעה מוכנה לשליחה</h3>
+        <p id="coverMessage"></p>
+        <button id="copyMessage" class="ghost">העתק הודעה</button>
+      </section>
+    </section>
+  </main>
+
+  <dialog id="profileDialog">
+    <form method="dialog" class="dialog-card">
+      <div class="dialog-head">
+        <div>
+          <h2>הפרופיל הקבוע שלי</h2>
+          <p class="muted">מכאן המערכת לוקחת את העובדות. היא לא אמורה להמציא מעבר לזה.</p>
+        </div>
+        <button class="x" value="cancel">×</button>
+      </div>
+      <div class="photo-settings">
+        <img id="settingsPhoto" src="/profile-photo" alt="" />
+        <div>
+          <strong>תמונת פרופיל נעולה</strong>
+          <p class="muted">התמונה לא משתנה אוטומטית. רק העלאה ידנית שלך תחליף אותה.</p>
+          <input id="newPhoto" type="file" accept="image/png,image/jpeg,image/webp" />
+          <button id="savePhoto" type="button" class="ghost">החלף תמונה</button>
+        </div>
+      </div>
+      <label>פרטי הפרופיל והניסיון (JSON)</label>
+      <textarea id="profileJson" class="json-editor" rows="20"></textarea>
+      <div class="dialog-actions">
+        <button id="saveProfile" type="button" class="primary">שמור פרופיל</button>
+        <button value="cancel" class="ghost">סגור</button>
+      </div>
+    </form>
+  </dialog>
+
+  <script src="/static/app.js"></script>
+</body>
+</html>
