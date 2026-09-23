@@ -14,11 +14,23 @@ from flask import Flask, jsonify, render_template, request, send_file
 
 load_dotenv()
 BASE = Path(__file__).resolve().parent
-PROFILE_PATH = BASE / "data" / "profile.json"
-PHOTO_PATH = BASE / "data" / "profile_photo.jpg"
-PHOTO_META_PATH = BASE / "data" / "profile_photo_meta.json"
 
-app = Flask(__name__)
+# Support both the intended folder structure (templates/static/data)
+# and a flat GitHub upload where those files ended up in the repo root.
+TEMPLATES_DIR = BASE / "templates" if (BASE / "templates" / "index.html").exists() else BASE
+STATIC_DIR = BASE / "static" if (BASE / "static" / "style.css").exists() else BASE
+DATA_DIR = BASE / "data" if (BASE / "data" / "profile.json").exists() else BASE
+
+PROFILE_PATH = DATA_DIR / "profile.json"
+PHOTO_PATH = DATA_DIR / "profile_photo.jpg"
+PHOTO_META_PATH = DATA_DIR / "profile_photo_meta.json"
+
+app = Flask(
+    __name__,
+    template_folder=str(TEMPLATES_DIR),
+    static_folder=str(STATIC_DIR),
+    static_url_path="/static",
+)
 app.config["MAX_CONTENT_LENGTH"] = 10 * 1024 * 1024
 app.secret_key = os.getenv("FLASK_SECRET_KEY", "dev-only-change-me")
 
