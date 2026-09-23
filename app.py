@@ -1,4 +1,5 @@
 import base64
+import io
 import json
 import os
 import re
@@ -10,54 +11,29 @@ from urllib.parse import urlparse
 import requests
 from bs4 import BeautifulSoup
 from dotenv import load_dotenv
-from flask import Flask, jsonify, render_template, request, send_file
+from flask import Flask, jsonify, render_template, request
+from pypdf import PdfReader
+from docx import Document
 
 load_dotenv()
 BASE = Path(__file__).resolve().parent
-
-# Support both the intended folder structure (templates/static/data)
-# and a flat GitHub upload where those files ended up in the repo root.
-TEMPLATES_DIR = BASE / "templates" if (BASE / "templates" / "index.html").exists() else BASE
-STATIC_DIR = BASE / "static" if (BASE / "static" / "style.css").exists() else BASE
-DATA_DIR = BASE / "data" if (BASE / "data" / "profile.json").exists() else BASE
-
-PROFILE_PATH = DATA_DIR / "profile.json"
-PHOTO_PATH = DATA_DIR / "profile_photo.jpg"
-PHOTO_META_PATH = DATA_DIR / "profile_photo_meta.json"
-
-app = Flask(
-    __name__,
-    template_folder=str(TEMPLATES_DIR),
-    static_folder=str(STATIC_DIR),
-    static_url_path="/static",
-)
-app.config["MAX_CONTENT_LENGTH"] = 10 * 1024 * 1024
+app = Flask(__name__, template_folder=str(BASE / "templates"), static_folder=str(BASE / "static"))
+app.config["MAX_CONTENT_LENGTH"] = 14 * 1024 * 1024
 app.secret_key = os.getenv("FLASK_SECRET_KEY", "dev-only-change-me")
 
 
-def load_profile():
-    return json.loads(PROFILE_PATH.read_text(encoding="utf-8"))
-
-
-def save_profile(data):
-    PROFILE_PATH.write_text(json.dumps(data, ensure_ascii=False, indent=2), encoding="utf-8")
-
-
-def clean_page_text(html):
+def clean_page_text(html: str) -> str:
     soup = BeautifulSoup(html, "html.parser")
     for tag in soup(["script", "style", "noscript", "svg", "header", "footer"]):
         tag.decompose()
     text = "\n".join(x.strip() for x in soup.stripped_strings if x.strip())
-    return re.sub(r"\n{3,}", "\n\n", text)[:18000]
+    return re.sub(r"\n{3,}", "\n\n", text)[:20000]
 
 
-def fetch_job_url(url):
+def fetch_public_url(url: str) -> str:
     parsed = urlparse(url)
-    if parsed.scheme not in {"http", "https"}:
-        raise ValueError("הקישור חייב להתחיל ב-http:// או https://")
-    if not parsed.hostname:
+    if parsed.scheme not in {"http", "https"} or not parsed.hostname:
         raise ValueError("קישור לא תקין")
-    # Basic SSRF protection for public deployments: block local/private targets.
     try:
         for info in socket.getaddrinfo(parsed.hostname, parsed.port or (443 if parsed.scheme == "https" else 80)):
             ip = ipaddress.ip_address(info[4][0])
@@ -65,118 +41,136 @@ def fetch_job_url(url):
                 raise ValueError("לא ניתן לקרוא כתובת מקומית/פרטית")
     except socket.gaierror as exc:
         raise ValueError(f"לא ניתן לפתור את כתובת האתר: {exc}")
-    headers = {"User-Agent": "Mozilla/5.0 (CV Tailor/1.0)"}
-    r = requests.get(url, headers=headers, timeout=15, allow_redirects=True)
+    r = requests.get(url, headers={"User-Agent": "Mozilla/5.0 (CV Match/2.0)"}, timeout=15, allow_redirects=True)
     r.raise_for_status()
     return clean_page_text(r.text)
 
 
-def image_to_data_url(file_storage):
-    raw = file_storage.read()
-    if len(raw) > 8 * 1024 * 1024:
-        raise ValueError("התמונה גדולה מדי. מקסימום 8MB.")
-    mime = file_storage.mimetype or "image/jpeg"
-    if mime not in {"image/jpeg", "image/png", "image/webp"}:
-        raise ValueError("יש להעלות JPG, PNG או WEBP.")
+def data_url_from_bytes(raw: bytes, mime: str) -> str:
     return f"data:{mime};base64,{base64.b64encode(raw).decode('ascii')}"
 
 
-def demo_result(profile, job_text, lang):
-    text = (job_text or "").lower()
-    areas = []
-    mapping = [
-        (("לוגיסט", "מחסן", "משלוח", "warehouse", "logistics"), "לוגיסטיקה ומחסן"),
-        (("מכירות", "sales", "אולם", "showroom", "ליסינג"), "מכירות וניהול לקוחות"),
-        (("חנות", "סניף", "retail", "store"), "ניהול קמעונאי"),
-        (("עוזר", "assistant", "מנכ", "ceo"), "תפעול ותמיכה ניהולית"),
-        (("קפה", "בריסט", "מסעד", "food", "catering"), "אירוח, מזון ואירועים"),
-    ]
-    for keys, label in mapping:
-        if any(k in text for k in keys):
-            areas.append(label)
-    if not areas:
-        areas = ["ניהול, תפעול ומכירות"]
-    he = lang != "en"
-    headline = " | ".join(areas[:3]) if he else "Management | Operations | Sales"
-    exp = []
-    for e in profile["experience"][:6]:
-        exp.append({
-            "company": e["company"],
-            "role": e["role_he"] if he else e["role_en"],
-            "dates": e["dates"],
-            "bullets": e["facts"][:3],
-        })
-    return {
-        "needs_clarification": False,
-        "questions": [],
-        "job": {"title": "משרה מותאמת" if he else "Target role", "company": "", "requirements": []},
-        "match": {"score": 72, "strengths": areas, "gaps": ["מצב הדגמה – חיבור API ייתן ניתוח מלא ומדויק יותר"]},
-        "cv": {
-            "language": "he" if he else "en",
-            "headline": headline,
-            "summary": "מנהל עם ניסיון רב-תחומי בניהול אנשים, תפעול, מכירות ולוגיסטיקה, עם יכולת עבודה בסביבה דינמית והובלת משימות מקצה לקצה." if he else "Manager with cross-functional experience in people leadership, operations, sales and logistics, able to drive end-to-end execution in dynamic environments.",
-            "skills": profile["skills"][:7],
-            "experience": exp,
-            "education": profile["education"],
-            "languages": profile["languages"],
+def extract_uploaded_cv(file_storage):
+    if not file_storage or not file_storage.filename:
+        return {"text": "", "attachment": None, "filename": ""}
+    raw = file_storage.read()
+    if len(raw) > 12 * 1024 * 1024:
+        raise ValueError("קובץ קורות החיים גדול מדי. מקסימום 12MB.")
+    name = file_storage.filename or "resume"
+    ext = Path(name).suffix.lower()
+    mime = file_storage.mimetype or "application/octet-stream"
+    text = ""
+    attachment = None
+
+    if ext == ".pdf" or mime == "application/pdf":
+        try:
+            reader = PdfReader(io.BytesIO(raw))
+            text = "\n".join((page.extract_text() or "") for page in reader.pages)[:30000]
+        except Exception:
+            text = ""
+        # Attach the original PDF as well; this helps with image/scanned PDFs.
+        attachment = {
+            "type": "input_file",
+            "filename": name,
+            "file_data": base64.b64encode(raw).decode("ascii"),
+        }
+    elif ext == ".docx" or "wordprocessingml" in mime:
+        doc = Document(io.BytesIO(raw))
+        text = "\n".join(p.text for p in doc.paragraphs if p.text.strip())[:30000]
+    elif ext in {".txt", ".md"} or mime.startswith("text/"):
+        text = raw.decode("utf-8", errors="replace")[:30000]
+    elif ext in {".jpg", ".jpeg", ".png", ".webp"} or mime.startswith("image/"):
+        if mime not in {"image/jpeg", "image/png", "image/webp"}:
+            mime = "image/jpeg"
+        attachment = {"type": "input_image", "image_url": data_url_from_bytes(raw, mime), "detail": "high"}
+    else:
+        raise ValueError("פורמט קובץ לא נתמך. העלה PDF, DOCX, TXT, JPG, PNG או WEBP.")
+    return {"text": text, "attachment": attachment, "filename": name}
+
+
+def normalize_month(v):
+    if not v:
+        return ""
+    v = str(v).strip()
+    m = re.match(r"^(\d{4})(?:[-/.](\d{1,2}))?", v)
+    if not m:
+        return ""
+    year = int(m.group(1))
+    month = min(12, max(1, int(m.group(2) or 1)))
+    return f"{year:04d}-{month:02d}"
+
+
+def sort_profile(profile):
+    def exp_key(e):
+        current = bool(e.get("is_current"))
+        end = normalize_month(e.get("end_date")) or ("9999-12" if current else "0000-01")
+        start = normalize_month(e.get("start_date")) or "0000-01"
+        return (1 if current else 0, end, start)
+    profile["experience"] = sorted(profile.get("experience", []), key=exp_key, reverse=True)
+    return profile
+
+
+PROFILE_SCHEMA = {
+    "type": "object",
+    "additionalProperties": False,
+    "required": ["personal", "summary_facts", "experience", "education", "languages", "skills", "certifications", "questions"],
+    "properties": {
+        "personal": {
+            "type": "object", "additionalProperties": False,
+            "required": ["name_he", "name_en", "phone", "email", "linkedin", "website", "location_he", "location_en"],
+            "properties": {k: {"type": "string"} for k in ["name_he", "name_en", "phone", "email", "linkedin", "website", "location_he", "location_en"]}
         },
-        "cover_message": "מצורפים קורות החיים שלי, מותאמים למשרה. אשמח לשוחח ולהרחיב על הניסיון הרלוונטי." if he else "Please find my tailored CV attached. I would be glad to discuss the role and my relevant experience."
+        "summary_facts": {"type": "array", "items": {"type": "string"}, "maxItems": 8},
+        "experience": {
+            "type": "array", "maxItems": 30,
+            "items": {
+                "type": "object", "additionalProperties": False,
+                "required": ["company", "role_he", "role_en", "category", "start_date", "end_date", "is_current", "date_text_original", "location", "facts"],
+                "properties": {
+                    "company": {"type": "string"}, "role_he": {"type": "string"}, "role_en": {"type": "string"},
+                    "category": {"type": "string", "enum": ["work", "military", "project", "volunteer", "other"]},
+                    "start_date": {"type": "string"}, "end_date": {"type": "string"}, "is_current": {"type": "boolean"},
+                    "date_text_original": {"type": "string"}, "location": {"type": "string"},
+                    "facts": {"type": "array", "items": {"type": "string"}, "maxItems": 10}
+                }
+            }
+        },
+        "education": {
+            "type": "array", "maxItems": 12,
+            "items": {
+                "type": "object", "additionalProperties": False,
+                "required": ["institution", "program", "start_date", "end_date", "details"],
+                "properties": {"institution": {"type": "string"}, "program": {"type": "string"}, "start_date": {"type": "string"}, "end_date": {"type": "string"}, "details": {"type": "string"}}
+            }
+        },
+        "languages": {
+            "type": "array", "maxItems": 12,
+            "items": {"type": "object", "additionalProperties": False, "required": ["name", "level"], "properties": {"name": {"type": "string"}, "level": {"type": "string"}}}
+        },
+        "skills": {"type": "array", "items": {"type": "string"}, "maxItems": 40},
+        "certifications": {"type": "array", "items": {"type": "string"}, "maxItems": 20},
+        "questions": {"type": "array", "items": {"type": "string"}, "maxItems": 12}
     }
+}
 
 
 CV_SCHEMA = {
-    "type": "object",
-    "additionalProperties": False,
+    "type": "object", "additionalProperties": False,
     "required": ["needs_clarification", "questions", "job", "match", "cv", "cover_message"],
     "properties": {
         "needs_clarification": {"type": "boolean"},
         "questions": {"type": "array", "items": {"type": "string"}},
-        "job": {
-            "type": "object",
-            "additionalProperties": False,
-            "required": ["title", "company", "requirements"],
-            "properties": {
-                "title": {"type": "string"},
-                "company": {"type": "string"},
-                "requirements": {"type": "array", "items": {"type": "string"}}
-            }
-        },
-        "match": {
-            "type": "object",
-            "additionalProperties": False,
-            "required": ["score", "strengths", "gaps"],
-            "properties": {
-                "score": {"type": "integer", "minimum": 0, "maximum": 100},
-                "strengths": {"type": "array", "items": {"type": "string"}},
-                "gaps": {"type": "array", "items": {"type": "string"}}
-            }
-        },
+        "job": {"type": "object", "additionalProperties": False, "required": ["title", "company", "requirements"], "properties": {"title": {"type": "string"}, "company": {"type": "string"}, "requirements": {"type": "array", "items": {"type": "string"}}}},
+        "match": {"type": "object", "additionalProperties": False, "required": ["score", "strengths", "gaps"], "properties": {"score": {"type": "integer", "minimum": 0, "maximum": 100}, "strengths": {"type": "array", "items": {"type": "string"}}, "gaps": {"type": "array", "items": {"type": "string"}}}},
         "cv": {
-            "type": "object",
-            "additionalProperties": False,
+            "type": "object", "additionalProperties": False,
             "required": ["language", "headline", "summary", "skills", "experience", "education", "languages"],
             "properties": {
-                "language": {"type": "string", "enum": ["he", "en"]},
-                "headline": {"type": "string"},
-                "summary": {"type": "string"},
-                "skills": {"type": "array", "items": {"type": "string"}, "maxItems": 9},
-                "experience": {
-                    "type": "array",
-                    "maxItems": 7,
-                    "items": {
-                        "type": "object",
-                        "additionalProperties": False,
-                        "required": ["company", "role", "dates", "bullets"],
-                        "properties": {
-                            "company": {"type": "string"},
-                            "role": {"type": "string"},
-                            "dates": {"type": "string"},
-                            "bullets": {"type": "array", "items": {"type": "string"}, "maxItems": 4}
-                        }
-                    }
-                },
-                "education": {"type": "array", "items": {"type": "string"}, "maxItems": 4},
-                "languages": {"type": "array", "items": {"type": "string"}, "maxItems": 6}
+                "language": {"type": "string", "enum": ["he", "en"]}, "headline": {"type": "string"}, "summary": {"type": "string"},
+                "skills": {"type": "array", "items": {"type": "string"}, "maxItems": 10},
+                "experience": {"type": "array", "maxItems": 8, "items": {"type": "object", "additionalProperties": False, "required": ["company", "role", "dates", "bullets"], "properties": {"company": {"type": "string"}, "role": {"type": "string"}, "dates": {"type": "string"}, "bullets": {"type": "array", "items": {"type": "string"}, "maxItems": 4}}}},
+                "education": {"type": "array", "items": {"type": "string"}, "maxItems": 5},
+                "languages": {"type": "array", "items": {"type": "string"}, "maxItems": 8}
             }
         },
         "cover_message": {"type": "string"}
@@ -184,59 +178,89 @@ CV_SCHEMA = {
 }
 
 
-def generate_with_openai(profile, job_text, screenshot_data_url, lang, extra_notes):
+def openai_client():
+    if not os.getenv("OPENAI_API_KEY"):
+        return None
     from openai import OpenAI
-    client = OpenAI()
+    return OpenAI()
+
+
+def extract_profile_with_ai(current_profile, free_text, url_texts, cv_data):
+    client = openai_client()
+    if not client:
+        raise RuntimeError("כדי לייבא ולסדר קורות חיים אוטומטית צריך להוסיף OPENAI_API_KEY ב-Vercel.")
     model = os.getenv("OPENAI_MODEL", "gpt-5.6-terra")
-
     instructions = """
-You are a rigorous CV tailoring engine. Your goal is to create a one-page, ATS-friendly CV tailored to the supplied job while remaining completely truthful.
-
-NON-NEGOTIABLE RULES:
-1. Use only facts in CANDIDATE_PROFILE plus facts explicitly supplied in EXTRA_USER_FACTS. Never invent employers, dates, education, certifications, software, achievements, team size, revenue, KPIs or responsibilities.
-2. You may rephrase and prioritize existing facts to match the role, but may not inflate them.
-3. If a major job requirement is not supported, set needs_clarification=true and ask concise questions that could resolve the gap. Do not write the missing skill into the CV unless the user supplied it.
-4. Missing or uncertain dates must stay described as unknown/approximate; never guess.
-5. Prioritize the 4–7 most relevant experiences. Keep bullets concise and achievement-oriented without fake numbers.
-6. The CV should fit approximately one A4 page. Summary: 3–5 lines. Skills: 6–9. Experience: max 4 bullets per role.
-7. If language=auto, use the primary language of the job ad. If language=he, output Hebrew. If language=en, output English.
-8. Photo is handled by the app and is locked. Do not make suggestions to alter or retouch it.
-9. The match score is descriptive only: how much of the job appears supported by the profile. Do not hide gaps.
-10. cover_message should be a short natural WhatsApp/email message for sending the CV.
+You are a rigorous resume-profile extraction engine. Convert the supplied materials into a factual structured candidate profile.
+RULES:
+- Never invent employers, dates, titles, skills, education, languages, achievements, or numbers.
+- Preserve uncertainty. If a date is only a year, use YYYY-01 as start/end only when the year itself is explicit and keep the original wording in date_text_original. If a date is unknown, leave start_date/end_date empty.
+- start_date and end_date use YYYY-MM when supported. is_current=true only if the source clearly says present/current/today.
+- Separate work, military service, one-off projects and volunteering using category.
+- Deduplicate overlapping facts from multiple sources.
+- Merge with CURRENT_PROFILE rather than deleting verified existing facts unless the new source explicitly corrects them.
+- Questions should ask only about important ambiguities or missing dates/details that would materially improve a CV.
+- Output names/roles in both Hebrew and English only when translation is straightforward; do not embellish.
 """
-    prompt = f"""
-TARGET_LANGUAGE: {lang}
-
-CANDIDATE_PROFILE:
-{json.dumps(profile, ensure_ascii=False, indent=2)}
-
-JOB_TEXT_OR_URL_CONTENT:
-{job_text[:18000]}
-
-EXTRA_USER_FACTS / ANSWERS:
-{extra_notes or 'None'}
-
-Analyze the job, identify its real requirements, assess supported fit, ask for missing facts when necessary, and produce the tailored CV.
-"""
+    source_text = "\n\n".join([x for x in [free_text, "\n\n".join(url_texts), cv_data.get("text", "")] if x])[:45000]
+    prompt = f"CURRENT_PROFILE:\n{json.dumps(current_profile or {}, ensure_ascii=False)}\n\nSOURCE_TEXT:\n{source_text or '[No extracted text; inspect attached file/image]'}"
     content = [{"type": "input_text", "text": prompt}]
-    if screenshot_data_url:
-        content.append({"type": "input_image", "image_url": screenshot_data_url, "detail": "high"})
-        content.append({"type": "input_text", "text": "The attached screenshot is part of the job advertisement. Read it carefully and include its requirements in the analysis."})
-
-    response = client.responses.create(
+    if cv_data.get("attachment"):
+        content.append(cv_data["attachment"])
+    resp = client.responses.create(
         model=model,
         instructions=instructions,
         input=[{"role": "user", "content": content}],
-        text={
-            "format": {
-                "type": "json_schema",
-                "name": "tailored_cv",
-                "strict": True,
-                "schema": CV_SCHEMA
-            }
-        }
+        text={"format": {"type": "json_schema", "name": "candidate_profile", "strict": True, "schema": PROFILE_SCHEMA}},
     )
-    return json.loads(response.output_text)
+    return sort_profile(json.loads(resp.output_text))
+
+
+def display_dates(e, lang="he"):
+    if e.get("date_text_original"):
+        return e["date_text_original"]
+    s, end = e.get("start_date", ""), e.get("end_date", "")
+    if e.get("is_current"):
+        end = "היום" if lang == "he" else "Present"
+    return "–".join(x for x in [s, end] if x)
+
+
+def demo_result(profile, job_text, lang):
+    he = lang != "en"
+    exps = []
+    for e in profile.get("experience", [])[:7]:
+        exps.append({"company": e.get("company", ""), "role": e.get("role_he" if he else "role_en", "") or e.get("role_he", ""), "dates": display_dates(e, "he" if he else "en"), "bullets": e.get("facts", [])[:3]})
+    languages = [f"{x.get('name','')} – {x.get('level','')}" for x in profile.get("languages", [])]
+    edu = [" — ".join(x for x in [e.get("program", ""), e.get("institution", "")] if x) for e in profile.get("education", [])]
+    return {
+        "needs_clarification": False, "questions": [],
+        "job": {"title": "משרת יעד" if he else "Target role", "company": "", "requirements": []},
+        "match": {"score": 65, "strengths": profile.get("skills", [])[:4], "gaps": ["מצב הדגמה: יש לחבר OpenAI API לניתוח אמיתי של המשרה"]},
+        "cv": {"language": "he" if he else "en", "headline": "ניהול | תפעול | מכירות" if he else "Management | Operations | Sales", "summary": "תקציר מותאם ייווצר לאחר חיבור מנוע ה-AI." if he else "A tailored summary will be generated after the AI engine is connected.", "skills": profile.get("skills", [])[:9], "experience": exps, "education": edu, "languages": languages},
+        "cover_message": "מצורפים קורות החיים שלי. אשמח לשוחח על המשרה." if he else "Please find my CV attached. I would be glad to discuss the role."
+    }
+
+
+def generate_with_openai(profile, job_text, screenshot_data_url, lang, extra_notes):
+    client = openai_client()
+    model = os.getenv("OPENAI_MODEL", "gpt-5.6-terra")
+    instructions = """
+You are a rigorous CV tailoring engine. Produce a one-page ATS-friendly CV tailored to the job while remaining completely truthful.
+1. Use only facts in CANDIDATE_PROFILE plus EXTRA_USER_FACTS. Never invent dates, employers, qualifications, tools, metrics, team sizes or responsibilities.
+2. Rephrase and prioritize supported facts. Do not inflate them.
+3. If a major requirement is unsupported, set needs_clarification=true and ask a concise question instead of adding it.
+4. Preserve uncertain dates rather than guessing.
+5. Use 4–8 most relevant experiences, max 4 concise bullets each.
+6. If language=auto, follow the job ad language; he=Hebrew; en=English.
+7. Return a descriptive match score and transparent gaps.
+8. Write a short natural cover/WhatsApp message.
+"""
+    prompt = f"TARGET_LANGUAGE: {lang}\n\nCANDIDATE_PROFILE:\n{json.dumps(profile, ensure_ascii=False)}\n\nJOB_TEXT:\n{job_text[:20000]}\n\nEXTRA_USER_FACTS:\n{extra_notes or 'None'}"
+    content = [{"type": "input_text", "text": prompt}]
+    if screenshot_data_url:
+        content.append({"type": "input_image", "image_url": screenshot_data_url, "detail": "high"})
+    resp = client.responses.create(model=model, instructions=instructions, input=[{"role": "user", "content": content}], text={"format": {"type": "json_schema", "name": "tailored_cv", "strict": True, "schema": CV_SCHEMA}})
+    return json.loads(resp.output_text)
 
 
 @app.get("/")
@@ -244,80 +268,77 @@ def index():
     return render_template("index.html")
 
 
-@app.get("/profile-photo")
-def profile_photo():
-    mime = "image/jpeg"
-    if PHOTO_META_PATH.exists():
-        try:
-            mime = json.loads(PHOTO_META_PATH.read_text(encoding="utf-8")).get("mime", mime)
-        except Exception:
-            pass
-    return send_file(PHOTO_PATH, mimetype=mime, max_age=0)
+@app.get("/health")
+def health():
+    return jsonify({"ok": True, "api": bool(os.getenv("OPENAI_API_KEY")), "version": "2.0"})
 
 
-@app.get("/api/profile")
-def get_profile():
-    return jsonify(load_profile())
+@app.post("/api/profile/import")
+def import_profile():
+    try:
+        current = json.loads(request.form.get("current_profile") or "{}")
+        free_text = (request.form.get("free_text") or "").strip()
+        raw_urls = (request.form.get("source_urls") or "").strip()
+        cv_data = extract_uploaded_cv(request.files.get("cv_file"))
+        url_texts = []
+        for url in [x.strip() for x in re.split(r"[\n,]+", raw_urls) if x.strip()][:5]:
+            try:
+                url_texts.append(f"SOURCE URL: {url}\n{fetch_public_url(url)}")
+            except Exception as exc:
+                url_texts.append(f"SOURCE URL: {url}\n[Could not fetch automatically: {exc}]")
+        if not free_text and not raw_urls and not cv_data.get("text") and not cv_data.get("attachment"):
+            return jsonify({"error": "העלה קובץ קורות חיים, כתוב מידע חופשי או הוסף קישור."}), 400
+        profile = extract_profile_with_ai(current, free_text, url_texts, cv_data)
+        return jsonify({"profile": profile})
+    except Exception as exc:
+        return jsonify({"error": str(exc)}), 500
 
 
-@app.post("/api/profile")
-def update_profile():
-    data = request.get_json(force=True)
-    save_profile(data)
-    return jsonify({"ok": True})
-
-
-@app.post("/api/profile-photo")
-def update_photo():
-    photo = request.files.get("photo")
-    if not photo:
-        return jsonify({"error": "לא התקבלה תמונה"}), 400
-    if photo.mimetype not in {"image/jpeg", "image/png", "image/webp"}:
-        return jsonify({"error": "פורמט תמונה לא נתמך"}), 400
-    raw = photo.read()
-    if len(raw) > 8 * 1024 * 1024:
-        return jsonify({"error": "התמונה גדולה מדי"}), 400
-    PHOTO_PATH.write_bytes(raw)
-    PHOTO_META_PATH.write_text(json.dumps({"mime": photo.mimetype}), encoding="utf-8")
-    return jsonify({"ok": True, "url": "/profile-photo?v=2"})
+@app.post("/api/profile/normalize")
+def normalize_profile():
+    try:
+        profile = request.get_json(force=True)
+        return jsonify(sort_profile(profile))
+    except Exception as exc:
+        return jsonify({"error": str(exc)}), 400
 
 
 @app.post("/api/generate")
 def generate():
     try:
-        profile = load_profile()
+        profile = json.loads(request.form.get("profile_json") or "{}")
+        if not profile.get("personal"):
+            return jsonify({"error": "קודם צריך לבנות ולשמור פרופיל מקצועי."}), 400
         job_text = (request.form.get("job_text") or "").strip()
         job_url = (request.form.get("job_url") or "").strip()
         lang = request.form.get("language", "auto")
         extra_notes = (request.form.get("extra_notes") or "").strip()
         screenshot = request.files.get("screenshot")
-        screenshot_data_url = image_to_data_url(screenshot) if screenshot and screenshot.filename else None
-
+        shot_url = None
+        if screenshot and screenshot.filename:
+            raw = screenshot.read()
+            if len(raw) > 8 * 1024 * 1024:
+                raise ValueError("צילום המסך גדול מדי")
+            mime = screenshot.mimetype or "image/jpeg"
+            shot_url = data_url_from_bytes(raw, mime)
         url_text = ""
         if job_url:
             try:
-                url_text = fetch_job_url(job_url)
+                url_text = fetch_public_url(job_url)
             except Exception as exc:
-                url_text = f"[Could not fetch job URL automatically: {exc}]\nURL: {job_url}"
+                url_text = f"URL: {job_url}\n[Could not fetch automatically: {exc}]"
         combined = "\n\n".join(x for x in [job_text, url_text] if x).strip()
-        if not combined and not screenshot_data_url:
-            return jsonify({"error": "יש להעלות צילום מסך, להדביק קישור או לתאר את המשרה."}), 400
-
-        if not os.getenv("OPENAI_API_KEY"):
-            result = demo_result(profile, combined, lang)
+        if not combined and not shot_url:
+            return jsonify({"error": "העלה צילום מסך, הדבק קישור או תאר את המשרה."}), 400
+        if not openai_client():
+            result = demo_result(sort_profile(profile), combined, lang)
             result["demo_mode"] = True
             return jsonify(result)
-
-        result = generate_with_openai(profile, combined, screenshot_data_url, lang, extra_notes)
+        result = generate_with_openai(sort_profile(profile), combined, shot_url, lang, extra_notes)
         result["demo_mode"] = False
         return jsonify(result)
     except Exception as exc:
         return jsonify({"error": str(exc)}), 500
-
-
-@app.get("/health")
-def health():
-    return jsonify({"ok": True, "api": bool(os.getenv("OPENAI_API_KEY"))})
 
 
 if __name__ == "__main__":

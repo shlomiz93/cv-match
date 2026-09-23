@@ -1,0 +1,328 @@
+<!doctype html>
+<html lang="he" dir="rtl">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <meta name="theme-color" content="#081726" />
+  <title>CV Match — קורות חיים מותאמים</title>
+  <link rel="stylesheet" href="/static/style.css" />
+</head>
+<body>
+  <div class="app-bg" aria-hidden="true"><span></span><span></span><span></span></div>
+
+  <header class="topbar no-print">
+    <div class="topbar-inner">
+      <div class="brand-wrap">
+        <div class="brand-mark" aria-hidden="true">
+          <svg viewBox="0 0 40 40" role="img"><path d="M10 7.5h13l7 7V32.5H10z"/><path d="M23 7.5v8h7"/><path class="spark" d="M7 20l2 4 4 2-4 2-2 4-2-4-4-2 4-2z"/></svg>
+        </div>
+        <div>
+          <div class="brand">CV Match <span>AI</span></div>
+          <div class="tag">פרופיל אחד. קורות חיים מדויקים לכל משרה.</div>
+        </div>
+      </div>
+      <div class="top-actions">
+        <button id="jobNav" class="navbtn active"><span class="nav-dot"></span>התאמת משרה</button>
+        <button id="profileNav" class="navbtn">הפרופיל שלי</button>
+      </div>
+    </div>
+  </header>
+
+  <main class="shell">
+    <section id="profileNotice" class="notice no-print hidden">
+      <div class="notice-icon" aria-hidden="true">✦</div>
+      <div class="notice-copy">
+        <strong>לפני שמתחילים, בונים פעם אחת פרופיל מקצועי.</strong>
+        <div class="muted">אפשר להעלות קורות חיים קיימים, לכתוב חופשי או למלא שאלון קצר.</div>
+      </div>
+      <button id="startProfileBtn" class="primary">בנה את הפרופיל שלי</button>
+    </section>
+
+    <section id="jobSection" class="page-section">
+      <section class="hero no-print">
+        <div class="hero-copy">
+          <div class="hero-kicker"><span></span>CV TAILORING, WITHOUT THE BUSYWORK</div>
+          <h1>משרה אחת.<br><em>קורות חיים מדויקים.</em></h1>
+          <p>העלה צילום מסך, הדבק לינק או פשוט תכתוב מה התפקיד. המערכת תשתמש רק בניסיון האמיתי שלך ותדגיש את מה שרלוונטי.</p>
+          <div class="hero-badges">
+            <span>✓ עברית + English</span>
+            <span>✓ בלי להמציא ניסיון</span>
+            <span>✓ PDF מוכן לשליחה</span>
+          </div>
+        </div>
+        <div class="hero-graphic" aria-hidden="true">
+          <div class="graphic-orbit orbit-a"></div>
+          <div class="graphic-orbit orbit-b"></div>
+          <div class="cv-card-visual">
+            <div class="cvv-top"><span class="cvv-avatar"></span><span><b></b><i></i></span></div>
+            <div class="cvv-line wide"></div><div class="cvv-line"></div>
+            <div class="cvv-section"></div>
+            <div class="cvv-item"><span></span><b></b></div>
+            <div class="cvv-item"><span></span><b></b></div>
+            <div class="cvv-item"><span></span><b></b></div>
+          </div>
+          <div class="match-chip"><span>92%</span><small>התאמה למשרה</small></div>
+          <div class="spark-chip">✦ AI</div>
+        </div>
+      </section>
+
+      <div class="input-card no-print">
+        <div class="section-head">
+          <div>
+            <div class="kicker">שלב 2 · התאמה למשרה</div>
+            <h2>איך תרצה לשלוח את המשרה?</h2>
+            <p class="muted">אפשר להשתמש בדרך אחת או לשלב בין כמה.</p>
+          </div>
+          <div id="profileMini" class="profile-mini"></div>
+        </div>
+
+        <div class="source-grid">
+          <div class="source-card source-upload">
+            <div class="source-icon">▧</div>
+            <div class="source-title">צילום מסך</div>
+            <div class="source-sub">מודעת דרושים מוואטסאפ, פייסבוק, לינקדאין ועוד</div>
+            <div class="drop" id="dropZone">
+              <input id="screenshot" type="file" accept="image/png,image/jpeg,image/webp" hidden />
+              <div class="drop-icon">＋</div>
+              <strong>בחר תמונה או גרור לכאן</strong>
+              <span>PNG · JPG · WEBP</span>
+              <img id="shotPreview" alt="תצוגה מקדימה של המשרה" />
+            </div>
+          </div>
+
+          <div class="source-card">
+            <div class="source-icon">↗</div>
+            <div class="source-title">לינק למשרה</div>
+            <div class="source-sub">הדבק את הקישור למודעה</div>
+            <label class="compact-label" for="jobUrl">כתובת URL</label>
+            <div class="input-with-icon"><span>⌁</span><input id="jobUrl" type="url" dir="ltr" placeholder="https://..." /></div>
+            <label class="compact-label" for="language">שפת הקורות חיים</label>
+            <select id="language">
+              <option value="auto">אוטומטי לפי המשרה</option>
+              <option value="he">עברית</option>
+              <option value="en">English</option>
+            </select>
+          </div>
+
+          <div class="source-card source-text">
+            <div class="source-icon">✎</div>
+            <div class="source-title">תיאור חופשי</div>
+            <div class="source-sub">פשוט כתוב כמו שאתה מדבר</div>
+            <label class="compact-label" for="jobText">מה מחפשים?</label>
+            <textarea id="jobText" rows="8" placeholder="לדוגמה: מנהל אולם תצוגה בחברת רכב, ניהול צוות מכירות, יעדים, ליסינג ושירות לקוחות..."></textarea>
+          </div>
+        </div>
+
+        <div class="action-band">
+          <div>
+            <strong>מוכן?</strong>
+            <div id="status" class="status">המערכת תנתח את הדרישות ותתאים את הניסיון שלך.</div>
+          </div>
+          <button id="generateBtn" class="primary large"><span>✦</span> התאם לי קורות חיים</button>
+        </div>
+      </div>
+
+      <section id="clarifyCard" class="clarify no-print hidden">
+        <div class="clarify-icon">?</div>
+        <div class="badge warn">חסר מידע חשוב</div>
+        <h2>לפני שמוסיפים משהו לקו״ח, כדאי לוודא</h2>
+        <div id="questions"></div>
+        <label>התשובות שלך</label>
+        <textarea id="extraNotes" rows="5" placeholder="ענה כאן חופשי. לדוגמה: כן, ניהלתי 8 עובדים במשך שנתיים..."></textarea>
+        <button id="regenerateBtn" class="primary">עדכן את הקורות החיים</button>
+      </section>
+
+      <section id="resultArea" class="hidden">
+        <div class="result-actions no-print">
+          <div>
+            <div class="kicker">הקורות חיים שלך מוכנים</div>
+            <div id="matchPill" class="match-pill"></div>
+          </div>
+          <button id="printBtn" class="primary">שמור / הדפס PDF</button>
+        </div>
+        <div id="gapBox" class="gapbox no-print"></div>
+        <article id="cvPage" class="cv-page">
+          <aside class="cv-side">
+            <div class="cv-side-glow"></div>
+            <img id="profilePhoto" class="profile-photo hidden" alt="תמונת פרופיל" />
+            <div id="photoPlaceholder" class="photo-placeholder">תמונה</div>
+            <h2 id="cvName"></h2>
+            <div id="cvHeadline" class="headline"></div>
+            <div id="contactBox" class="contact"></div>
+            <hr />
+            <h3 id="skillsTitle">כישורים מרכזיים</h3>
+            <ul id="skillsList" class="plain-list"></ul>
+            <h3 id="languagesTitle">שפות</h3>
+            <ul id="languagesList" class="plain-list small"></ul>
+          </aside>
+          <section class="cv-main">
+            <div class="eyebrow" id="targetLabel">קורות חיים מותאמים למשרה</div>
+            <h1 id="targetTitle"></h1>
+            <p id="summary"></p>
+            <h2 id="experienceTitle">ניסיון מקצועי</h2>
+            <div id="experienceList"></div>
+            <div id="educationWrap">
+              <h2 id="educationTitle">השכלה והכשרה</h2>
+              <ul id="educationList"></ul>
+            </div>
+          </section>
+        </article>
+        <section class="send-card no-print">
+          <div class="send-icon">↗</div>
+          <div class="grow">
+            <h3>הודעה מוכנה לשליחה</h3>
+            <p id="coverMessage"></p>
+          </div>
+          <button id="copyMessage" class="ghost">העתק הודעה</button>
+        </section>
+      </section>
+    </section>
+
+    <section id="profileSection" class="page-section hidden">
+      <div class="profile-header no-print">
+        <div>
+          <div class="kicker">שלב 1 · מקור האמת</div>
+          <h1>הפרופיל המקצועי שלי</h1>
+          <p class="muted">המערכת מתאימה את הניסוח לכל משרה, אבל העובדות נשארות רק מה שהזנת כאן.</p>
+        </div>
+        <div class="profile-actions">
+          <button id="openImportBtn" class="primary">＋ הוסף / ייבא מידע</button>
+          <button id="saveProfileBtn" class="ghost">שמור פרופיל</button>
+        </div>
+      </div>
+
+      <div class="profile-layout no-print">
+        <aside class="profile-sidebar">
+          <div class="photo-card">
+            <div class="sidebar-card-label">תמונת פרופיל קבועה</div>
+            <img id="profileEditorPhoto" class="profile-editor-photo hidden" alt="" />
+            <div id="profileEditorPhotoPlaceholder" class="photo-big-placeholder"><span>◯</span><small>העלה תמונה</small></div>
+            <strong>התמונה נשמרת ללא שינוי</strong>
+            <p class="muted smalltext">לא נחליף, נייצר או נערוך אותה אוטומטית.</p>
+            <input id="newPhoto" type="file" accept="image/png,image/jpeg,image/webp" />
+            <button id="replacePhotoBtn" class="ghost full">החלף תמונה</button>
+          </div>
+          <div class="completion-card">
+            <div class="completion-row"><span class="completion-title">שלמות הפרופיל</span><span class="completion-dot">●</span></div>
+            <div class="progress"><span id="progressBar"></span></div>
+            <div id="completionText" class="muted smalltext"></div>
+          </div>
+          <div class="tip-card">
+            <span>✦</span>
+            <div><strong>טיפ</strong><p>ככל שהפרופיל מלא ומדויק יותר, ההתאמה למשרות טובה יותר.</p></div>
+          </div>
+        </aside>
+
+        <div class="profile-editor">
+          <section class="edit-card">
+            <div class="edit-card-title"><span>01</span><div><h2>פרטים אישיים</h2><p>המידע שיופיע בראש הקורות חיים.</p></div></div>
+            <div class="grid2">
+              <div><label>שם בעברית</label><input id="pNameHe" /></div>
+              <div><label>Name in English</label><input id="pNameEn" dir="ltr" /></div>
+              <div><label>טלפון</label><input id="pPhone" dir="ltr" /></div>
+              <div><label>אימייל</label><input id="pEmail" dir="ltr" /></div>
+              <div><label>LinkedIn</label><input id="pLinkedin" dir="ltr" /></div>
+              <div><label>אתר / תיק עבודות</label><input id="pWebsite" dir="ltr" /></div>
+              <div><label>מיקום בעברית</label><input id="pLocationHe" /></div>
+              <div><label>Location in English</label><input id="pLocationEn" dir="ltr" /></div>
+            </div>
+          </section>
+
+          <section class="edit-card">
+            <div class="card-head">
+              <div class="edit-card-title"><span>02</span><div><h2>ניסיון מקצועי, צבאי ופרויקטים</h2><p>נמיין אוטומטית לפי השנים והתאריכים.</p></div></div>
+              <button id="addExperienceBtn" class="ghost">＋ הוסף ניסיון</button>
+            </div>
+            <div id="experienceEditor"></div>
+          </section>
+
+          <section class="edit-card">
+            <div class="card-head">
+              <div class="edit-card-title"><span>03</span><div><h2>השכלה והכשרות</h2><p>לימודים, קורסים מקצועיים והסמכות.</p></div></div>
+              <button id="addEducationBtn" class="ghost">＋ הוסף</button>
+            </div>
+            <div id="educationEditor"></div>
+          </section>
+
+          <section class="edit-card">
+            <div class="card-head">
+              <div class="edit-card-title"><span>04</span><div><h2>שפות</h2><p>כולל רמת שליטה בכל שפה.</p></div></div>
+              <button id="addLanguageBtn" class="ghost">＋ הוסף שפה</button>
+            </div>
+            <div id="languagesEditor"></div>
+          </section>
+
+          <section class="edit-card">
+            <div class="edit-card-title"><span>05</span><div><h2>כישורים ומקצועות</h2><p>הכישורים שהמערכת תוכל לבחור מתוכם לפי המשרה.</p></div></div>
+            <label>כישורים — אחד בכל שורה</label>
+            <textarea id="pSkills" rows="8" placeholder="ניהול צוותים&#10;מכירות&#10;לוגיסטיקה"></textarea>
+            <label>הסמכות / קורסים — אחד בכל שורה</label>
+            <textarea id="pCertifications" rows="5"></textarea>
+          </section>
+
+          <section id="profileQuestionsCard" class="edit-card question-card hidden">
+            <div class="edit-card-title"><span>?</span><div><h2>דברים שכדאי להשלים</h2><p>רק שאלות שיעזרו לנו לדייק את הפרופיל.</p></div></div>
+            <div id="profileQuestions"></div>
+          </section>
+
+          <div class="sticky-save"><button id="saveProfileBottomBtn" class="primary large">שמור את הפרופיל</button></div>
+        </div>
+      </div>
+    </section>
+  </main>
+
+  <dialog id="importDialog">
+    <div class="dialog-card">
+      <div class="dialog-head">
+        <div>
+          <div class="kicker">SMART IMPORT</div>
+          <h2>איך תרצה לבנות או לעדכן את הפרופיל?</h2>
+          <p class="muted">אפשר להשתמש ביותר משיטה אחת. המערכת תאחד את המידע ותציג לך מה חסר.</p>
+        </div>
+        <button id="closeImport" class="x" aria-label="סגור">×</button>
+      </div>
+
+      <div class="method-grid">
+        <label class="method-card selected" data-method="file">
+          <input type="radio" name="method" value="file" checked />
+          <span class="method-icon">▧</span><strong>קורות חיים קיימים</strong><span>PDF / Word / תמונה / טקסט</span>
+        </label>
+        <label class="method-card" data-method="free">
+          <input type="radio" name="method" value="free" />
+          <span class="method-icon">✎</span><strong>כתיבה חופשית</strong><span>פשוט ספר על עצמך כמו בצ׳אט</span>
+        </label>
+        <label class="method-card" data-method="questionnaire">
+          <input type="radio" name="method" value="questionnaire" />
+          <span class="method-icon">☷</span><strong>שאלון</strong><span>ממלאים שדות מסודרים ידנית</span>
+        </label>
+      </div>
+
+      <div id="methodFile" class="method-panel">
+        <div class="file-drop-visual"><span>⇧</span><div><strong>בחר קובץ קורות חיים</strong><small>גם קובץ ישן ולא מעודכן הוא התחלה מצוינת</small></div></div>
+        <input id="oldCvFile" type="file" accept=".pdf,.docx,.txt,.md,image/png,image/jpeg,image/webp" />
+        <p class="muted smalltext">נחלץ תפקידים, חברות, שנים, שפות, כישורים ופרטי קשר — ולאחר מכן תוכל לערוך הכול.</p>
+      </div>
+
+      <div id="methodFree" class="method-panel hidden">
+        <label>ספר על עצמך בשפה חופשית</label>
+        <textarea id="profileFreeText" rows="10" placeholder="לדוגמה: עבדתי שנה וחצי ב-Sea & Car ברמת אביב בין 2020 ל-2021, מכרתי רכבי יוקרה ועבדתי עם ליסינג. בצבא הייתי אחראי על מחסן לוגיסטי..."></textarea>
+        <label>קישורים רלוונטיים — אחד בכל שורה</label>
+        <textarea id="profileSourceUrls" rows="4" dir="ltr" placeholder="https://linkedin.com/in/...&#10;https://..."></textarea>
+      </div>
+
+      <div id="methodQuestionnaire" class="method-panel hidden">
+        <div class="questionnaire-visual"><span>1</span><span>2</span><span>3</span></div>
+        <p>מעולה. נעבור לשאלון המסודר בפרופיל ונבנה אותו שלב אחר שלב.</p>
+      </div>
+
+      <div id="importStatus" class="status"></div>
+      <div class="dialog-actions">
+        <button id="importProfileBtn" class="primary">נתח וסדר לי את הפרופיל</button>
+        <button id="cancelImportBtn" class="ghost">ביטול</button>
+      </div>
+    </div>
+  </dialog>
+
+  <script src="/static/app.js"></script>
+</body>
+</html>
